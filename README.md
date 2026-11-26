@@ -40,3 +40,9 @@ Trong **Cài đặt Gemini**, người dùng có thể lưu nhiều API key, đ�
 ### Audio Gemini cho Shadowing
 
 Thêm `VITE_FIREBASE_STORAGE_BUCKET` vào `.env.local` hoặc `.env` bằng tên bucket trong Firebase Console, bật Cloud Storage for Firebase, và áp dụng `storage.rules` cùng `firestore.rules` trước khi tạo bài. Khởi động lại server sau khi đổi cấu hình. Gemini tạo một file WAV cho toàn bộ tài liệu bằng model TTS và giọng Orus (có hướng dẫn phát âm Mỹ); file được lưu ở Storage của tài khoản. Mốc đầu/cuối câu được ước lượng theo độ dài văn bản và khoảng lặng, có thể chỉnh thủ công khi luyện. Mỗi tài liệu hỗ trợ tối đa 6.000 ký tự khi tạo audio. Nội dung tạo sinh có thể khác biệt về giọng và phát âm. Việc gọi Gemini TTS và sử dụng Storage có thể phát sinh chi phí hoặc cần gói thanh toán phù hợp. Bài cũ dùng giọng thiết bị cần tạo lại để có audio Gemini. API key và nội dung được gửi tới Google khi tạo bài.
+
+## Firebase Hosting
+
+`firebase.json` cấu hình Hosting phục vụ giao diện và chuyển `/api/**` tới Cloud Function xác thực Firebase ID token trước khi gọi Gemini. Firebase Hosting + Cloud Functions cần gói Blaze; các yêu cầu qua Hosting có giới hạn 60 giây, vì vậy tạo Shadowing hoặc audio dài có thể bị timeout. Cần kiểm thử thực tế bằng Firebase Emulator và tài khoản của bạn trước khi triển khai.
+
+Sau khi cài Firebase CLI, đăng nhập và chọn đúng project, chạy `npm install`, `npm install --prefix functions`, `npm run build`, rồi `firebase deploy --only functions,hosting`. Trước khi sử dụng hãy cấu hình Firebase Authentication cho domain Hosting và áp dụng Firestore/Storage rules trong Console. Không đưa `.env` hoặc Gemini key vào source; giá trị `VITE_FIREBASE_*` được nhúng vào bản build trình duyệt. Các key Gemini người dùng tự cài vẫn lưu trong trình duyệt của người đó.
