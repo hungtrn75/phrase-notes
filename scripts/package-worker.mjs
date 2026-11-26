@@ -1,0 +1,4 @@
+import {readFileSync,readdirSync,writeFileSync,mkdirSync} from 'node:fs';
+import {join} from 'node:path';
+const files={};function walk(dir){for(const e of readdirSync(dir,{withFileTypes:true})){const p=join(dir,e.name);if(e.isDirectory())walk(p);else files['/'+p.slice(5)]={body:readFileSync(p).toString('base64'),type:p.endsWith('.html')?'text/html; charset=utf-8':p.endsWith('.js')?'text/javascript; charset=utf-8':p.endsWith('.css')?'text/css; charset=utf-8':'application/octet-stream'};}}walk('dist');
+const worker=readFileSync('scripts/worker.js','utf8').replace('/* ASSETS */',`const ASSETS = ${JSON.stringify(files)};`).replace('/* GEMINI */',readFileSync('scripts/gemini.js','utf8').replaceAll('export async function','async function'));mkdirSync('dist/server',{recursive:true});writeFileSync('dist/server/index.js',worker);

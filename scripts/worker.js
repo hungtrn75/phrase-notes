@@ -1,0 +1,23 @@
+/* ASSETS */
+/* GEMINI */
+export default {async fetch(request,env){
+ const url=new URL(request.url);
+ if(url.pathname==='/api/shadowing-ipa'){if(!request.headers.get('oai-authenticated-user-id'))return new Response('Unauthorized',{status:401});if(request.method!=='POST')return new Response('Method not allowed',{status:405});try{return Response.json(await generateIpa(await request.json(),request.headers.get('x-gemini-api-key')||env.GEMINI_API_KEY));}catch(e){return Response.json({error:e.message||'Không tạo được IPA.'},{status:400});}}
+ if(url.pathname==='/api/shadowing-audio'){if(!request.headers.get('oai-authenticated-user-id'))return new Response('Unauthorized',{status:401});if(request.method!=='POST')return new Response('Method not allowed',{status:405});try{return Response.json(await generateShadowAudio(await request.json(),request.headers.get('x-gemini-api-key')||env.GEMINI_API_KEY));}catch(e){return Response.json({error:e.message||'Không tạo được âm thanh.'},{status:400});}}
+ if(url.pathname==='/api/gemini-check'){if(!request.headers.get('oai-authenticated-user-id'))return new Response('Unauthorized',{status:401});if(request.method!=='POST')return new Response('Method not allowed',{status:405});try{return Response.json(await checkGemini(request.headers.get('x-gemini-api-key')||env.GEMINI_API_KEY));}catch(e){return Response.json({error:e.message||'Không thể kiểm tra Gemini.'},{status:400});}}
+ if(url.pathname==='/api/shadowing'){const owner=request.headers.get('oai-authenticated-user-id');if(!owner)return new Response('Unauthorized',{status:401});if(request.method!=='POST')return new Response('Method not allowed',{status:405});let payload;try{payload=await request.json();}catch{return Response.json({error:'Dữ liệu yêu cầu không hợp lệ.'},{status:400});}const key=request.headers.get('x-gemini-api-key')||env.GEMINI_API_KEY;const encoder=new TextEncoder();const stream=new ReadableStream({async start(controller){const send=value=>controller.enqueue(encoder.encode(JSON.stringify(value)+'\n'));try{send({type:'progress',message:'Máy chủ đã nhận yêu cầu. Đang chuẩn bị gửi tới Gemini…'});const result=await generateDialogue(payload,key,message=>send({type:'progress',message}));send({type:'result',result});}catch(e){send({type:'error',message:e.message||'Không thể tạo bài.'});}finally{controller.close();}}});return new Response(stream,{headers:{'content-type':'application/x-ndjson; charset=utf-8','cache-control':'no-cache, no-transform'}});}
+ if(url.pathname==='/api/review'){const owner=request.headers.get('oai-authenticated-user-id');if(!owner)return new Response('Unauthorized',{status:401});if(request.method!=='POST')return new Response('Method not allowed',{status:405});try{const payload=await request.json();return Response.json(await reviewWithGemini(payload,(request.headers.get('x-gemini-api-key')||env.GEMINI_API_KEY)));}catch(e){return Response.json({error:e.message||'Không thể đánh giá.'},{status:400});}}
+ if(url.pathname==='/api/documents'){
+  const owner=request.headers.get('oai-authenticated-user-id');if(!owner)return new Response('Đăng nhập để sử dụng.',{status:401});
+  if(request.method==='GET'){const {results}=await env.DB.prepare('SELECT data FROM documents WHERE owner = ?').bind(owner).all();return Response.json(results.map(r=>JSON.parse(r.data)));}
+  if(request.method==='POST'){
+   let doc;try{doc=await request.json()}catch{return new Response('Invalid JSON',{status:400})}
+   if(!doc || typeof doc.id!=='string'||!Number.isSafeInteger(doc.revision)||doc.revision<0||JSON.stringify(doc).length>2000000)return new Response('Invalid document',{status:400});
+   const next={...doc,revision:doc.revision+1,updatedAt:new Date().toISOString()};
+   if(doc.revision===0){const result=await env.DB.prepare('INSERT OR IGNORE INTO documents (owner,id,revision,data) VALUES (?,?,?,?)').bind(owner,doc.id,next.revision,JSON.stringify(next)).run();if(!result.meta.changes)return new Response('conflict',{status:409});}
+   else {const result=await env.DB.prepare('UPDATE documents SET revision = ?, data = ? WHERE owner = ? AND id = ? AND revision = ?').bind(next.revision,JSON.stringify(next),owner,doc.id,doc.revision).run();if(!result.meta.changes)return new Response('conflict',{status:409});}
+   return Response.json(next);
+  }return new Response('Method not allowed',{status:405});
+ }
+ const asset=ASSETS[url.pathname==='/'?'/index.html':url.pathname];if(!asset)return new Response('Not found',{status:404});return new Response(Uint8Array.from(atob(asset.body),c=>c.charCodeAt(0)),{headers:{'content-type':asset.type,'x-content-type-options':'nosniff'}});
+}};
